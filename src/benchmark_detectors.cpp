@@ -7,19 +7,20 @@
 #include <memory>
 #include <numeric>
 #include <algorithm>
+#include <cstdlib>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/features2d.hpp>
 
 
 const std::string DATASET_PATH = "data/training/R_01_easy/asl_folder/aria/cam0/data";
-const std::string OUTPUT_CSV = "results/benchmark_results.csv";
+const std::string OUTPUT_DIR = "results/";
+const std::string OUTPUT_CSV = OUTPUT_DIR + "benchmark_results.csv";
 const int MAX_IMAGES_TO_TEST = 100;
 
 std::vector<std::filesystem::path> load_image_paths(const std::filesystem::path& dir) {
 
     std::vector<std::filesystem::path> paths;
-
     if (!std::filesystem::exists(dir)) {
         std::cerr << "Directory not found: " << dir << "\n";
         return paths;
@@ -32,7 +33,6 @@ std::vector<std::filesystem::path> load_image_paths(const std::filesystem::path&
     }
 
     std::sort(paths.begin(), paths.end());
-
     if (paths.size() > MAX_IMAGES_TO_TEST) {
         paths.resize(MAX_IMAGES_TO_TEST);
     }
@@ -50,25 +50,33 @@ Result run_test(const std::string& name, cv::Ptr<cv::Feature2D> detector, const 
 
     std::vector<double> times;
     std::vector<size_t> kp_counts;
-
     times.reserve(images.size());
 
-    for (const auto& path : images) {
-        cv::Mat img = cv::imread(path.string(), cv::IMREAD_GRAYSCALE);
+    size_t target_save_idx = std::rand() % images.size();
+
+    for (size_t i = 0; i < images.size(); ++i) {
+        cv::Mat img = cv::imread(images[i].string(), cv::IMREAD_GRAYSCALE);
         if (img.empty()) continue;
 
         std::vector<cv::KeyPoint> keypoints;
 
+        // Timing the feature detector
         auto start = std::chrono::high_resolution_clock::now();
-
         detector->detect(img, keypoints);
-
         auto end = std::chrono::high_resolution_clock::now();
 
         std::chrono::duration<double, std::milli> duration = end - start;
-
         times.push_back(duration.count());
         kp_counts.push_back(keypoints.size());
+
+        if (i == target_save_idx) {
+            cv::Mat output_img;
+
+            cv::drawKeypoints(img, keypoints, output_img, cv::Scalar(0, 255, 0), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+
+            std::string save_path = OUTPUT_DIR + name + "_sample.png";
+            cv::imwrite(save_path, output_img);
+        }
     }
 
     double total_time = std::accumulate(times.begin(), times.end(), 0.0);
@@ -81,33 +89,23 @@ Result run_test(const std::string& name, cv::Ptr<cv::Feature2D> detector, const 
     return {name, avg_time, avg_kp};
 }
 
-// -------------------------------------------------------------------------
-// Main
-// -------------------------------------------------------------------------
 int main() {
-    // [vector] A list of pairs (Name, DetectorPointer)
-    // Note on <memory>: cv::Ptr is similar to std::shared_ptr found in <memory>
     std::vector<std::pair<std::string, cv::Ptr<cv::Feature2D>>> detectors;
 
     detectors.push_back({"FAST", cv::FastFeatureDetector::create(30, true, cv::FastFeatureDetector::TYPE_9_16)});
+    detectors.push_back({"AGAST", cv::AgastFeatureDetector::create(30, true, cv::AgastFeatureDetector::OAST_9_16)});
     detectors.push_back({"ORB", cv::ORB::create(500)});
     detectors.push_back({"GFTT", cv::GFTTDetector::create(500, 0.01, 10)});
-    detectors.push_back({"SIFT", cv::SIFT::create(500)});
 
-    // [iostream] Logging
     std::cout << "Loading images from: " << DATASET_PATH << "\n";
     auto images = load_image_paths(DATASET_PATH);
-
     if (images.empty()) {
         std::cerr << "No images found! Check path.\n";
         return -1;
     }
     std::cout << "Loaded " << images.size() << " images for benchmarking.\n";
 
-    // [fstream] Opening a file for writing the CSV
     std::ofstream csv_file(OUTPUT_CSV);
-    
-    // [fstream] Writing the header row
     csv_file << "Detector,AvgTime_ms,FPS_Est,AvgKeypoints\n";
 
     for (const auto& [name, detector] : detectors) {
@@ -118,11 +116,10 @@ int main() {
         }
 
         Result res = run_test(name, detector, images);
-        
-        // [fstream] Writing formatted data to the file
-        csv_file << res.name << "," 
-                 << res.avg_time_ms << "," 
-                 << (1000.0 / res.avg_time_ms) << "," 
+
+        csv_file << res.name << ","
+                 << res.avg_time_ms << ","
+                 << (1000.0 / res.avg_time_ms) << ","
                  << res.avg_keypoints << "\n";
     }
 
