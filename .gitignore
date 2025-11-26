@@ -1,3 +1,4 @@
-data/
-results/
+data/*
+build/*
+results/*
 download_lamaria.py
