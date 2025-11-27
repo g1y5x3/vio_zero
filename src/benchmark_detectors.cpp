@@ -11,6 +11,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/features2d.hpp>
+#include <opencv2/core/version.hpp>
 
 
 const std::string DATASET_PATH = "data/training/R_01_easy/asl_folder/aria/cam0/data";
@@ -90,12 +91,19 @@ Result run_test(const std::string& name, cv::Ptr<cv::Feature2D> detector, const 
 }
 
 int main() {
+    std::cout << "------------------------------------------------\n";
+    std::cout << "OpenCV Version: " << CV_VERSION << "\n";
+    std::cout << "------------------------------------------------\n";
+
     std::vector<std::pair<std::string, cv::Ptr<cv::Feature2D>>> detectors;
 
     detectors.push_back({"FAST", cv::FastFeatureDetector::create(30, true, cv::FastFeatureDetector::TYPE_9_16)});
     detectors.push_back({"AGAST", cv::AgastFeatureDetector::create(30, true, cv::AgastFeatureDetector::OAST_9_16)});
     detectors.push_back({"ORB", cv::ORB::create(500)});
+    detectors.push_back({"BRISK", cv::BRISK::create(30, 3, 1.0f)});
     detectors.push_back({"GFTT", cv::GFTTDetector::create(500, 0.01, 10)});
+    detectors.push_back({"SIFT", cv::SIFT::create(500)});
+    detectors.push_back({"AKAZE", cv::AKAZE::create()});
 
     std::cout << "Loading images from: " << DATASET_PATH << "\n";
     auto images = load_image_paths(DATASET_PATH);
@@ -124,5 +132,6 @@ int main() {
     }
 
     std::cout << "Benchmark saved to " << OUTPUT_CSV << "\n";
+
     return 0;
 }
