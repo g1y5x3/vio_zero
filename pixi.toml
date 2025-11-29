@@ -1,0 +1,33 @@
+[workspace]
+name = "vio_zero"
+version = "0.1.0"
+description = "Environment matching Raspberry Pi OS Bookworm defaults"
+channels = ["conda-forge"]
+platforms = ["linux-64", "linux-aarch64"]
+
+[dependencies]
+python = "3.11.*"
+numpy = "*"
+opencv = "==4.10.0"
+eigen = "==3.4.0"
+pcl = "1.13.*"
+
+# --- Build Tools ---
+cmake = "*"
+ninja = "*"
+clang = ">=16"      # Ensures a modern Clang with C++20 support
+llvm-openmp = "*"   # Good practice when using Clang on Linux
+
+# --- Force Compiler Environment Variables ---
+[activation]
+env = { CC = "clang", CXX = "clang++" }
+
+[tasks]
+# We add -DCMAKE_CXX_STANDARD=20 explicitly here too, just to be safe
+configure = "cmake -G Ninja -S . -B build -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=20"
+build = { cmd = "ninja -C build", depends-on = ["configure"] }
+start = { cmd = "./build/benchmark_detectors", depends-on = ["build"] }
+clean = "rm -rf build"
+
+[system-requirements]
+linux = "5.15"
